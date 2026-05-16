@@ -174,7 +174,7 @@ void BTree<T, Compare>::fixInsertViolation(SharedPtr& node) {
     left->value.reserve(n);
     right->value.reserve(n);
 
-    // don't have children
+    // have children
     if (!node->children.empty()) {
         auto child_mid = node->children.begin() + (size / 2 + 1);
         left->children.assign(node->children.begin(), child_mid);
