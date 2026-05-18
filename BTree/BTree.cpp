@@ -4,15 +4,17 @@
 #include <iostream>
 #include <memory>
 #include <functional>
-#include <tuple>
 #include <queue>
 
 // Check whether element exists or not.
 template<class T, class Compare>
 bool BTree<T, Compare>::find(const T& x) {
-    auto [node, it] = findNodePos(root, x);
-    if (node == nullptr || it == nullptr || !equal(x, *it)) return false;
-    return true;
+    auto [node, index] = findNodePos(root, x);
+    if (node == nullptr || index == -1) return false;
+    if (index < node->value.size() && equal(x, node->value[index])) {
+        return true;
+    }
+    return false;
 }
 
 // Insert element.
@@ -24,16 +26,16 @@ void BTree<T, Compare>::insert(const T& x) {
     root->value.push_back(x);
     return;
     }
-    auto [node, it] = findNodePos(root, x);
+    auto [node, index] = findNodePos(root, x);
     // if x exists, return
-    if (it != nullptr && equal(x, *it)) return;
-    int idx = 0;
-    if (it != nullptr) {
-        idx = it - node->value.data();
+    if (index != -1 && index < node->value.size() && equal(x, node->value[index])) return;
+    typename std::vector<T>::iterator it;
+    if (index == -1) {
+        it = node->value.end();
     } else {
-        idx = node->value.size(); 
+        it = node->value.begin() + index; 
     }
-    node->value.insert(node->value.begin() + idx, x);
+    node->value.insert(it, x);
     fixInsertViolation(node);
 }
 
@@ -41,17 +43,19 @@ void BTree<T, Compare>::insert(const T& x) {
 template<typename T, typename Compare>
 void BTree<T, Compare>::remove(const T& x) {
     if (root == nullptr) return;
-    auto [node, it] = findNodePos(root, x);
-    if (it == nullptr || !equal(x, *it)) return;
+    auto [node, index] = findNodePos(root, x);
+    if (index == -1 || !equal(x, node->value[index])) return;
     if (!node->children.empty()) {
-        int child_i = (it - node->value.data()) + 1;
-        auto [min_node, min_it] = findMinimum(node->children[child_i]);
-        T val = *min_it;
+        int child_i = index + 1;
+        auto [min_node, min_index] = findMinimum(node->children[child_i]);
+        T val = min_node->value[min_index];
         remove(val);
-        auto [new_node, new_it] = findNodePos(root, x);
-        *new_it = val;
+        auto [new_node, new_index] = findNodePos(root, x);
+        if (new_index >= 0 && new_index < new_node->value.size()) {
+            new_node->value[new_index] = val;
+        }
     } else {
-        node->value.erase(node->value.begin() + (it - node->value.data()));
+        node->value.erase(node->value.begin() + index);
         fixRemoveViolation(node);
     }
 }
@@ -64,7 +68,7 @@ bool BTree<T, Compare>::empty() const {
 
 // Check the number of elements in the Btree.
 template<typename T, typename Compare>
-int BTree<T, Compare>::size(const SharedPtr& node) const {
+int BTree<T, Compare>::size(const SharedPtr<T>& node) const {
     if (node == nullptr) return 0;
     int cnt = node->value.size();
     for (auto child : node->children) {
@@ -78,10 +82,10 @@ template<typename T, typename Compare>
 void BTree<T, Compare>::clear() {
     if (root == nullptr) return;
     
-    std::vector<SharedPtr> stack = {root};
+    std::vector<SharedPtr<T>> stack = {root};
     
     while (!stack.empty()) {
-        SharedPtr node = stack.back();
+        SharedPtr<T> node = stack.back();
         stack.pop_back();
         
         for (auto& child : node->children) {
@@ -99,13 +103,13 @@ void BTree<T, Compare>::clear() {
 template<typename T, typename Compare>
 void BTree<T, Compare>::print() {
     if (this->root == nullptr) return;
-    std::queue<SharedPtr> q{};
+    std::queue<SharedPtr<T>> q{};
     q.push(this->root);
-    std::queue<SharedPtr> tmp{};
+    std::queue<SharedPtr<T>> tmp{};
     while (!q.empty()) {
         tmp.swap(q);
         while (!tmp.empty()) {
-            SharedPtr node = tmp.front();
+            SharedPtr<T> node = tmp.front();
             tmp.pop();
             for (auto child : node->children) {
                 q.push(child);
@@ -121,7 +125,7 @@ void BTree<T, Compare>::print() {
 
 //Inorder print: Child[0] -> value[0] -> Child[1] -> value[1]...
 template<typename T, typename Compare>
-void BTree<T, Compare>::inorderPrint(const SharedPtr& node) {
+void BTree<T, Compare>::inorderPrint(const SharedPtr<T>& node) {
     if (node == nullptr) return;
     for (int i = 0; i < node->value.size(); i++) {
         if (i < node->children.size()) {
@@ -137,19 +141,18 @@ void BTree<T, Compare>::inorderPrint(const SharedPtr& node) {
 
 // Find the pos to insert: return BTreeNode and ptr.
 template<typename T, typename Compare>
-std::pair<typename BTree<T, Compare>::SharedPtr, T*> BTree<T, Compare>::findNodePos(SharedPtr node, const T& x) {
-    if (node == nullptr) return {nullptr, nullptr};
-    if (node->value.empty()) return {node, nullptr};
-    auto it = node->value.data();
+std::pair<SharedPtr<T>, int> BTree<T, Compare>::findNodePos(SharedPtr<T> node, const T& x) {
+    if (node == nullptr) return {nullptr, -1};
+    if (node->value.empty()) return {node, 0};
     for (int i = 0; i < node->value.size(); i++) {
-        if (equal(x, *(it+i))) return {node, it+i};
-        else if (less(x, *(it+i))) {
+        if (equal(x, node->value[i])) return {node, i};
+        else if (less(x, node->value[i])) {
             // if its children is not empty, then go on
             // else insert this value at current node
             if (!node->children.empty()) {
                 return findNodePos(node->children[i], x);
             }
-            return {node, it+i};
+            return {node, i};
         }
     }
     // if this value is larger than all the elements at current node
@@ -158,18 +161,18 @@ std::pair<typename BTree<T, Compare>::SharedPtr, T*> BTree<T, Compare>::findNode
         return findNodePos(node->children.back(), x);
     }
     // if it is leaf node, insert at the vector end
-    return {node, it+node->value.size()};
+    return {node, -1};
 }
 
 // Fix insert violation.
 template<typename T, typename Compare>
-void BTree<T, Compare>::fixInsertViolation(SharedPtr& node) {
+void BTree<T, Compare>::fixInsertViolation(SharedPtr<T>& node) {
     int size = node->value.size();
     if (size < this->n) return;
     auto it = node->value.begin() + size / 2;
-    SharedPtr left = std::make_shared<BTreeNode<T>>();
+    SharedPtr<T> left = std::make_shared<BTreeNode<T>>();
     left->value.assign(node->value.begin(), it);
-    SharedPtr right = std::make_shared<BTreeNode<T>>();
+    SharedPtr<T> right = std::make_shared<BTreeNode<T>>();
     right->value.assign(it + 1, node->value.end());
     left->value.reserve(n);
     right->value.reserve(n);
@@ -187,7 +190,7 @@ void BTree<T, Compare>::fixInsertViolation(SharedPtr& node) {
         }
     }
 
-    SharedPtr father = nullptr;
+    SharedPtr<T> father = nullptr;
     // don't have parent
     if (node->parent.lock() == nullptr) {
         father = std::make_shared<BTreeNode<T>>();
@@ -217,11 +220,11 @@ void BTree<T, Compare>::fixInsertViolation(SharedPtr& node) {
 
 // Fix delete violation
 template<typename T, typename Compare>
-void BTree<T, Compare>::fixRemoveViolation(SharedPtr& node) {
+void BTree<T, Compare>::fixRemoveViolation(SharedPtr<T>& node) {
     int tolerance = (this->n + 1) / 2 - 1;
     if (node->value.size() >= tolerance) return;
     // don't have father
-    SharedPtr father = node->parent.lock();
+    SharedPtr<T> father = node->parent.lock();
     if (father == nullptr && node->value.size() > 0) return;
     if (father == nullptr) {
         if (!node->children.empty()) {
@@ -235,8 +238,8 @@ void BTree<T, Compare>::fixRemoveViolation(SharedPtr& node) {
     }
 
     int i = std::find(father->children.begin(), father->children.end(), node) - father->children.begin();
-    SharedPtr left = (i-1) >= 0 ? father->children[i-1] : nullptr;
-    SharedPtr right = (i+1) < father->children.size() ? father->children[i+1] : nullptr;
+    SharedPtr<T> left = (i-1) >= 0 ? father->children[i-1] : nullptr;
+    SharedPtr<T> right = (i+1) < father->children.size() ? father->children[i+1] : nullptr;
     if (left != nullptr && left->value.size() > tolerance) {
         node->value.insert(node->value.begin(), father->value[i-1]);
         father->value[i-1] = left->value.back();
@@ -282,12 +285,12 @@ void BTree<T, Compare>::fixRemoveViolation(SharedPtr& node) {
 
 // Find the minimum value on the right
 template<typename T, typename Compare>
-std::tuple<typename BTree<T, Compare>::SharedPtr, T*> BTree<T, Compare>::findMinimum(const SharedPtr& node) {
-    SharedPtr son = node;
+std::pair<SharedPtr<T>, int> BTree<T, Compare>::findMinimum(const SharedPtr<T>& node) {
+    SharedPtr<T> son = node;
     while (!son->children.empty()) {
         son = son->children[0];
     }
-    return {son, son->value.data()};
+    return {son, 0};
 }
 
 template class BTree<int>;

@@ -13,12 +13,15 @@ public:
     std::weak_ptr<BTreeNode<T>> parent;
 };
 
+template<typename T>
+using SharedPtr = std::shared_ptr<BTreeNode<T>>;
+
+template<typename T>
+using WeakPtr = std::weak_ptr<BTreeNode<T>>;
+
 template<class T, class Compare = std::less<T>>
 class BTree {
 public:
-    using SharedPtr = std::shared_ptr<BTreeNode<T>>;
-    using WeakPtr = std::weak_ptr<BTreeNode<T>>;
-
     // Constructor: input the order of the BTree.
     BTree(const int& dimension,  const Compare& c = Compare()) : n(dimension), comp(c) {}
 
@@ -58,24 +61,24 @@ public:
     bool empty() const;
 
     // Check the number of elements in the Btree.
-    int size(const SharedPtr& node) const;
+    int size(const SharedPtr<T>& node) const;
 
     // Clear all the elements in the BTree.
     void clear();
 
     // Line by line and inorder print.
     void print();
-    void inorderPrint(const SharedPtr& node);
+    void inorderPrint(const SharedPtr<T>& node);
 
     // Return the root of BTree.
-    WeakPtr getRoot() {
+    WeakPtr<T> getRoot() {
         return root;
     }
 
 
 private:
     const int n; // Order of the BTree
-    SharedPtr root = nullptr; // Root node
+    SharedPtr<T> root = nullptr; // Root node
     Compare comp; // Comparator
 
     bool equal(const T& a, const T& b) const {
@@ -87,16 +90,16 @@ private:
     }
 
     // Find the pos to insert: return BTreeNode and ptr.
-    std::pair<SharedPtr, T*> findNodePos(SharedPtr node, const T& x);
+    std::pair<SharedPtr<T>, int> findNodePos(SharedPtr<T> node, const T& x);
 
     // Fix insert violation.
-    void fixInsertViolation(SharedPtr& node);
+    void fixInsertViolation(SharedPtr<T>& node);
 
     // Fix delete violation
-    void fixRemoveViolation(SharedPtr& node);
+    void fixRemoveViolation(SharedPtr<T>& node);
 
     // Find the minimum value on the right
-    std::tuple<SharedPtr, T*> findMinimum(const SharedPtr& node);
+    std::pair<SharedPtr<T>, int> findMinimum(const SharedPtr<T>& node);
 };
 
 #endif // BTREE_H
